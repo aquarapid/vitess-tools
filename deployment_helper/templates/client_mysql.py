@@ -86,6 +86,7 @@ def write_row():
     global write_counter
     global error_counter
     global cnx, cursor
+    global time_created_values
     insert_sql = 'INSERT INTO messages (page, time_created_ns, message) VALUES (%s, %s, %s)'
     page = random.randint(1, 100)
     time_created_ns = int(time.time() * 1e9)
@@ -118,10 +119,10 @@ def exec_read_query(argc, **argv):
 def read_row():
     global read_counter
     global error_counter
-    query_sql = 'select * from messages where time_created_ns = "%s"'
+    query_sql = 'select * from messages where time_created_ns = %s'
     time_created_ns = random.choice(time_created_values)
     try:
-        cursor.execute(query_sql, (time_created_ns))
+        cursor.execute(query_sql, (time_created_ns,))
         read_counter += 1
     except Exception as e:
         error_counter += 1
