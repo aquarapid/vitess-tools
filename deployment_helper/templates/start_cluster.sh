@@ -99,7 +99,7 @@ done
 
 echo
 echo
-echo Note: In this example setup, backups are stored at $BACKUP_DIR. In a multi-server deployment, you would usually mount an NFS directory there. You can also change the location by setting the -file_backup_storage_root flag on vtctld and vttablet
+echo Note: In this example setup, backups are stored at $BACKUP_DIR. In a multi-server deployment, you would usually mount an NFS directory there, or another centralized storage method Vitess supports, like S3 or GCS. You can also change the location by setting the -file_backup_storage_root flag on vtctld and vttablet
 
 echo Initialize Vitess Routing Schema
 if [ $num_orig_shards -eq 1 ]; then
@@ -119,7 +119,7 @@ echo Vitess uses vtgate to route each client query to the correct vttablet. This
 
 run_interactive "$DIR/vtgate-up.sh"
 
-echo You can run a simple client application that connects to vtgate and inserst some rows:
+echo You can run a simple client application that connects to vtgate and insert some rows:
 python $DIR/client_mysql.py
 
 echo

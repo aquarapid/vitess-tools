@@ -11,6 +11,7 @@ import argparse
 
 def get_hostname():
     FNULL = open(os.devnull, 'w')
+    # TODO: better way?
     url = 'http://169.254.169.254/latest/meta-data/public-hostname'
     try:
      return subprocess.check_output(['curl', '--connect-timeout', '1', url], stderr=FNULL)
@@ -44,7 +45,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--server', dest='server', default='vtgate')
     parser.add_argument('--host', dest='host', default=get_hostname())
-    parser.add_argument('--timeout', dest='timeout', type=float, default='5.0')
+    parser.add_argument('--timeout', dest='timeout', type=int, default='5')
     parser.add_argument('--qps', dest='qps', type=float, default='10.0')
     parser.add_argument('--read-write-ratio', dest='read_write_ratio', type=float, default='0.8')
     args = parser.parse_args()
