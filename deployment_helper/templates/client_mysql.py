@@ -2,12 +2,16 @@
 
 import mysql.connector
 import os
+import signal
 import subprocess
 import socket
 import sys
 import time
 import random
 import argparse
+
+def handle_sigint(signo, frame):
+    sys.exit()
 
 def get_hostname():
     FNULL = open(os.devnull, 'w')
@@ -160,6 +164,7 @@ def run():
         log(total_time, read_row_count())
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, handle_sigint)
     parse_args()
     connect()
     run()
