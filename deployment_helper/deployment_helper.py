@@ -1385,16 +1385,18 @@ CREATE TABLE IF NOT EXISTS %(sidecar_dbname)s.shard_metadata (
   ) ENGINE=InnoDB;
 
 # User for app traffic, with global read-write access.
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, REPLICATION CLIENT, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER ON *.* TO 'mysql_user'@'%%' IDENTIFIED BY 'mysql_password';
+CREATE USER IF NOT EXISTS 'mysql_user'@'%%' IDENTIFIED BY 'mysql_password';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, PROCESS, FILE, REFERENCES, INDEX, ALTER, SHOW DATABASES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, REPLICATION SLAVE, REPLICATION CLIENT, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER ON *.* TO 'mysql_user'@'%%';
 
 """ % locals()
 
         footer = """
 # User for Orchestrator (https://github.com/github/orchestrator).
+CREATE USER IF NOT EXISTS 'orc_client_user' IDENTIFIED BY 'orc_client_user_password';
 GRANT SUPER, PROCESS, REPLICATION SLAVE, RELOAD
-  ON *.* TO 'orc_client_user'@'%%' IDENTIFIED BY 'orc_client_user_password';
+  ON *.* TO 'orc_client_user'@'%%';
 GRANT SELECT
-  ON %(sidecar_dbname)s.* TO 'orc_client_user'@'%%' IDENTIFIED BY 'orc_client_user_password';
+  ON %(sidecar_dbname)s.* TO 'orc_client_user'@'%%';
 
 FLUSH PRIVILEGES;
 
@@ -1410,21 +1412,19 @@ FLUSH PRIVILEGES;
             hostname = 'localhost'
             if db_type == 'repl':
                 hostname = '%'
-            line = "GRANT %(perms)s ON *.* TO '%(user)s'@'%(hostname)s'" % locals()
+            line = "CREATE USER IF NOT EXISTS '%(user)s'@'%(hostname)s'" % locals()
             if password:
                 line += " IDENTIFIED BY '%(password)s';" % locals()
             else:
                 line += ";"
+            line += "\nGRANT %(perms)s ON *.* TO '%(user)s'@'%(hostname)s';" % locals()
             out.append(line)
             # If vt_dba add another line.
             if db_type == 'dba':
-                line = "GRANT GRANT OPTION ON *.* TO '%(user)s'@'localhost'" % locals()
-                if password:
-                    line += " IDENTIFIED BY '%(password)s';" % locals()
-                else:
-                    line += ";"
-                    out.append(line)
+                line = "GRANT GRANT OPTION ON *.* TO '%(user)s'@'localhost';" % locals()
+                out.append(line)
             out.append('')
+
 
         return header + '\n'.join(out) + footer
 
