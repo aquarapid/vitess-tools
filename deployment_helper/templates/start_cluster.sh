@@ -55,6 +55,9 @@ echo The vttablet-up.sh script brings up vttablets, for all shards
 echo
 run_interactive "$DIR/vttablet-up.sh"
 echo
+echo Waiting a bit, for the tablet servers to catch up
+sleep 5
+echo
 echo Next, designate one of the tablets to be the initial master.
 echo Vitess will automatically connect the other slaves' mysqld instances so that they start replicating from the master's mysqld.
 echo This is also when the default database is created. Our keyspace is named %(keyspace)s, and our MySQL database is named %(dbname)s.
@@ -120,7 +123,7 @@ echo Vitess uses vtgate to route each client query to the correct vttablet. This
 run_interactive "$DIR/vtgate-up.sh"
 
 echo You can run a simple client application that connects to vtgate and insert some rows:
-python $DIR/client_mysql.py
+run_interactive "python $DIR/client_mysql.py"
 
 echo
 echo Congratulations, your local cluster is now up and running.
