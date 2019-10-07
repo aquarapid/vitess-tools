@@ -4,19 +4,6 @@
 export LD_LIBRARY_PATH=${VTROOT}/dist/grpc/usr/local/lib
 export PATH=${VTROOT}/bin:${VTROOT}/.local/bin:${VTROOT}/dist/chromedriver:${VTROOT}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/local/mysql/bin
 
-case "$MYSQL_FLAVOR" in
-  "MySQL56")
-    export EXTRA_MY_CNF=$VTROOT/config/mycnf/master_mysql56.cnf
-    ;;
-  "MariaDB")
-    export EXTRA_MY_CNF=$VTROOT/config/mycnf/master_mariadb.cnf
-    ;;
-  *)
-    echo "Please set MYSQL_FLAVOR to MySQL56 or MariaDB."
-    exit 1
-    ;;
-esac
-
 mkdir -p ${VTDATAROOT}/tmp
 mkdir -p ${BACKUP_DIR}
 

@@ -15,19 +15,6 @@ export PATH=${VTROOT}/bin:${VTROOT}/.local/bin:${VTROOT}/dist/chromedriver:${VTR
 ORC_HOST=${VTCTLD_HOST}
 ORC_PORT=30000
 
-case "$MYSQL_FLAVOR" in
-  "MySQL56")
-    export EXTRA_MY_CNF=$VTROOT/config/mycnf/master_mysql56.cnf
-    ;;
-  "MariaDB")
-    export EXTRA_MY_CNF=$VTROOT/config/mycnf/master_mariadb.cnf
-    ;;
-  *)
-    echo "Please set MYSQL_FLAVOR to MySQL56 or MariaDB."
-    exit 1
-    ;;
-esac
-
 mkdir -p ${VTDATAROOT}/tmp
 mkdir -p ${BACKUP_DIR}
 

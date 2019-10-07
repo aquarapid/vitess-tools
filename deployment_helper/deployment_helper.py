@@ -15,8 +15,7 @@ VTROOT = None
 VTDATAROOT = None
 BACKUP_DIR = None
 VTTOP = None
-MYSQL_FLAVOR = None
-VT_MYSQL_ROOT = None
+VT_MYSQL_ROOT = '/usr'
 DEPLOYMENT_DIR = None
 CELL = None
 KEYSPACE = None
@@ -43,19 +42,17 @@ def make_run_script_file():
 def read_template(filename):
     dirpath = os.path.join(DEPLOYMENT_HELPER_DIR, 'templates')
     with open(os.path.join(dirpath, filename)) as fh:
-        return ''.join(fh.readlines())
+        return fh.read()
 
 def check_host():
-    global VTROOT, VTTOP, VTDATAROOT, MYSQL_FLAVOR, VT_MYSQL_ROOT, DEPLOYMENT_DIR, BACKUP_DIR
+    global VTROOT, VTTOP, VTDATAROOT, VT_MYSQL_ROOT, DEPLOYMENT_DIR, BACKUP_DIR
     VTROOT = os.environ.get('VTROOT')
     VTTOP = os.environ.get('VTTOP')
     VTDATAROOT = os.environ.get('VTDATAROOT')
-    MYSQL_FLAVOR = os.environ.get('MYSQL_FLAVOR')
-    VT_MYSQL_ROOT = os.environ.get('VT_MYSQL_ROOT')
-    if VTROOT is not None and VTDATAROOT is not None and MYSQL_FLAVOR is not None and VT_MYSQL_ROOT is not None:
+    VT_MYSQL_ROOT = os.environ.get('VT_MYSQL_ROOT') or VT_MYSQL_ROOT
+    if VTROOT is not None and VTDATAROOT is not None and VT_MYSQL_ROOT is not None:
         print 'VTROOT=%s' % VTROOT
         print 'VTDATAROOT=%s' % VTDATAROOT
-        print 'MYSQL_FLAVOR=%s' % MYSQL_FLAVOR
         print 'VT_MYSQL_ROOT=%s' % VT_MYSQL_ROOT
     else:
         print """
@@ -66,9 +63,7 @@ VTROOT is the root of vitess installation. We expect to find the vitess binaries
 VTDATAROOT is where the mysql data files, backup files, log files etc. are stored. This would typically be
 on a partition where there is enough disk space for your data.
 
-MYSQL_FLAVOR should be one of MariaDB or MySQL56.
-
-Set the VT_MYSQL_ROOT variable to the root directory of your mysql flavor installation.
+Set the VT_MYSQL_ROOT variable to the root directory of your mysql installation.
 This means that the mysql executable should be found at $VT_MYSQL_ROOT/bin/mysql.
 
 """
@@ -78,14 +73,8 @@ This means that the mysql executable should be found at $VT_MYSQL_ROOT/bin/mysql
         if VTDATAROOT is None:
             VTDATAROOT = os.environ.get('VTDATAROOT') or read_value('Did not find VTDATAROOT in environment. Enter VTDATAROOT:')
 
-        if MYSQL_FLAVOR is None:
-            MYSQL_FLAVOR = os.environ.get('MYSQL_FLAVOR') or read_value('Did not find MYSQL_FLAVOR in environment. Enter MYSQL_FLAVOR:')
-        if VT_MYSQL_ROOT is None:
-            VT_MYSQL_ROOT = os.environ.get('VT_MYSQL_ROOT') or read_value('Did not find VT_MYSQL_ROOT in environment. Enter VT_MYSQL_ROOT:')
-
         print 'VTROOT=%s' % VTROOT
         print 'VTDATAROOT=%s' % VTDATAROOT
-        print 'MYSQL_FLAVOR=%s' % MYSQL_FLAVOR
         print 'VT_MYSQL_ROOT=%s' % VT_MYSQL_ROOT
 
     DEPLOYMENT_DIR = os.getenv('DEPLOYMENT_DIR') or os.path.join(VTROOT, 'vitess-deployment')
@@ -94,17 +83,6 @@ This means that the mysql executable should be found at $VT_MYSQL_ROOT/bin/mysql
     print
 
 g_local_hostname = socket.getfqdn()
-
-def read_value_orig(prompt, default=''):
-    if not prompt.endswith(' '):
-        prompt += ' '
-    if type(default) is int:
-        default = str(default)
-    readline.set_startup_hook(lambda: readline.insert_text(default))
-    try:
-        return raw_input(prompt).strip()
-    finally:
-        readline.set_startup_hook()
 
 def read_value(prompt, default=''):
     if not prompt.endswith(' '):
@@ -117,13 +95,26 @@ def read_value(prompt, default=''):
         val = default
     return val
 
-def set_cell_and_keyspace(default_cell):
+def read_list(prompt, default=[]):
+    if not prompt.endswith(' '):
+        prompt += ' '
+    if type(default) is int:
+        default = str(default)
+    prompt = '%s %s:' % (prompt, default)
+    prompt_input = raw_input(prompt).strip()
+    lst = [el.strip() for el in prompt_input.split(',')]
+    # TODO: hack
+    if lst == ['']: lst = []
+    if not lst:
+        lst = default
+    return lst
+
+def set_cell_and_keyspace(default_cell, default_keyspace=''):
     global CELL, KEYSPACE
     CELL = os.environ.get('CELL') or read_value('Enter CELL name:', default_cell)
     if '-' in CELL:
         print("Error: CELL must not contain a '-' character")
         sys.exit(1)
-    default_keyspace = 'messagedb'
     KEYSPACE = read_value('Enter KEYSPACE name:', default_keyspace)
 
 base_ports = {
@@ -346,7 +337,8 @@ class LockServer(HostClass):
         if args.vtctld_addr is not None:
             self.init_from_vtctld(args.vtctld_addr)
         else:
-            set_cell_and_keyspace('uswest')
+            # TODO:  get these defaults from somewhere?
+            set_cell_and_keyspace('uswest', 'messagedb')
             self.read_config()
 
     def init_from_vtctld(self, vtctld_endpoint):
@@ -369,7 +361,7 @@ class LockServer(HostClass):
         super(LockServer, self).read_config()
 
         if self.ls_type != 'zk2':
-            print >> sys.stderr, 'ERROR: Not Implemnted'
+            print >> sys.stderr, 'ERROR: Not Implemented'
             sys.exit(1)
 
         self.ls = Zk2()
@@ -717,6 +709,10 @@ NUM_BYTES = 1
 MAX_SHARDS = 2 ** (NUM_BYTES * 8)
 
 def make_shards(num_shards):
+    """
+    Return canonical shard names covering the range with the number of
+    shards provided
+    """
     def get_str(x):
         if x in (hex(0), hex(MAX_SHARDS)):
             return ''
@@ -953,9 +949,10 @@ class VtTablet(HostClass):
                     cnt += 1
                     default_host = host_per_tablet[(shard, ttype, i)]
                     unique_id = base_offset + cnt - 1
-                    alias = '%s-%010d' %(CELL, unique_id)
+                    cell = CELL
+                    alias = '%s-%010d' %(cell, unique_id)
                     tablet_dir ='vt_%010d' % unique_id
-                    print 'Tablet "%(alias)s" (shard="%(shard)s",type="%(ttype)s",num="%(i)d):' % locals()
+                    print 'Tablet "%(alias)s" (cell="%(cell)s",shard="%(shard)s",type="%(ttype)s",num=%(i)d):' % locals()
                     prompt = '\tEnter host name:'
                     host = read_value(prompt, default_host)
                     prompt = '\tEnter web port number:'
@@ -1007,14 +1004,12 @@ class VtTablet(HostClass):
         vtroot = VTROOT
         vttop = VTTOP
         cell = CELL
-        mysql_flavor = MYSQL_FLAVOR
         backup_dir = BACKUP_DIR
         return """#!/bin/bash
 # This script creates a single shard vttablet deployment.
 VTDATAROOT=%(vtdataroot)s
 VTROOT=%(vtroot)s
 VTTOP=%(vttop)s
-MYSQL_FLAVOR=%(mysql_flavor)s
 
 set -e
 
@@ -1049,7 +1044,6 @@ TOPOLOGY_FLAGS="%(topology_flags)s"
         vtroot = VTROOT
         vttop = VTTOP
         cell = CELL
-        mysql_flavor = MYSQL_FLAVOR
         dbconfig_dba_flags = self.dbconfig.get_dba_flags()
         dbconfig_flags = self.dbconfig.get_flags(host=mysql_host, port=mysql_port)
         init_file = os.path.join(DEPLOYMENT_DIR, 'config', self.dbconfig.init_file)
@@ -1070,7 +1064,6 @@ export VTDATAROOT=%(vtdataroot)s
 export VTROOT=%(vtroot)s
 export VTTOP=%(vttop)s
 export VT_MYSQL_ROOT=%(vt_mysql_root)s
-export MYSQL_FLAVOR=%(mysql_flavor)s
 
 MYSQL_AUTH_PARAM="%(mysql_auth_param)s"
 
@@ -1494,185 +1487,11 @@ def create_start_cluster(vtctld_host, vtgate_host, tablets, dbname):
         l = '\tAccess tablet %(alias)s at http://%(host)s:%(web_port)s/debug/status' % locals()
         tlines.append(l)
     tablet_urls = '\n'.join(tlines)
-
-    template = r"""#!/bin/bash
-# This script starts a local cluster.
-
-PS_INTERACTIVE=${PS_INTERACTIVE:-"1"}
-BACKUP_DIR=${VT_BACKUP_DIR:-${VTDATAROOT}/backups}
-
-function run_interactive()
-{
-    command=$1
-    prompt=${2:-"Run this command? (Y/n):"}
-    echo $command
-    if [ ${PS_INTERACTIVE} -eq 0 ]; then
-	eval $command
-    else
-	read -p "$prompt" response
-	if echo "$response" | grep -iq "^n" ; then
-	    echo Not running: $command
-	else
-	    eval $command
-	fi
-    fi
-}
-
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-echo
-echo This script will walk you through starting a vitess cluster.
-echo
-echo Servers in a Vitess cluster find each other by looking for dynamic configuration data stored in a distributed lock service.
-echo After the ZooKeeper cluster is running, we only need to tell each Vitess process how to connect to ZooKeeper.
-echo Then, each process can find all of the other Vitess processes by coordinating via ZooKeeper.
-
-echo Each of our scripts automatically uses the TOPOLOGY_FLAGS environment variable to point to the global ZooKeeper instance.
-echo The global instance in turn is configured to point to the local instance.
-echo This demo assumes that they are both hosted in the same ZooKeeper service.
-
-echo
-run_interactive "$DIR/zk-up.sh"
-
-echo
-echo The vtctld server provides a web interface that displays all of the coordination information stored in ZooKeeper.
-echo
-run_interactive "$DIR/vtctld-up.sh"
-
-echo
-echo Open http://%(vtctld_host)s:15000 to verify that vtctld is running.
-echo "There won't be any information there yet, but the menu should come up, which indicates that vtctld is running."
-
-echo The vtctld server also accepts commands from the vtctlclient tool, which is used to administer the cluster.
-echo "Note that the port for RPCs (in this case 15999) is different from the web UI port (15000)."
-echo These ports can be configured with command-line flags, as demonstrated in vtctld-up.sh.
-echo
-echo
-echo The vttablet-up.sh script brings up vttablets, for all shards
-echo
-run_interactive "$DIR/vttablet-up.sh"
-echo
-echo Next, designate one of the tablets to be the initial master.
-echo Vitess will automatically connect the other slaves' mysqld instances so that they start replicating from the master's mysqld.
-echo This is also when the default database is created. Our keyspace is named %(keyspace)s, and our MySQL database is named %(dbname)s.
-echo
-
-orig_shards=$(python -c "import json; print ' '.join(json.loads(open('%(deployment_dir)s/config/vttablet.json').read())['shard_sets'][0])")
-first_orig_shard=$(echo $orig_shards | cut  -d " " -f1)
-num_orig_shards=$(echo $orig_shards | wc -w)
-
-for shard in $orig_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 InitShardMaster -force %(keyspace)s/$shard $tablet"
-done
-
-echo
-echo After running this command, go back to the Shard Status page in the vtctld web interface.
-echo When you refresh the page, you should see that one vttablet is the master and the other two are replicas.
-echo
-echo You can also see this on the command line:
-echo
-run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListAllTablets %(cell)s"
-echo
-echo The vtctlclient tool can be used to apply the database schema across all tablets in a keyspace.
-echo The following command creates the table defined in the database_schema.sql file
-run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ApplySchema -sql "$(cat $DIR/../config/database_schema.sql)" %(keyspace)s'
-echo
-echo "Now that the initial schema is applied, it's a good time to take the first backup. This backup will be used to automatically restore any additional replicas that you run, before they connect themselves to the master and catch up on replication. If an existing tablet goes down and comes back up without its data, it will also automatically restore from the latest backup and then resume replication."
-
-for shard in $orig_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -3 | tail -1 | awk '{print $1}')
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 Backup $tablet"
-done
-
-
-echo
-echo After the backup completes, you can list available backups for the shards:
-
-for shard in $orig_shards; do
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListBackups %(keyspace)s/$shard"
-done
-
-
-echo
-echo
-echo Note: In this example setup, backups are stored at $BACKUP_DIR. In a multi-server deployment, you would usually mount an NFS directory there. You can also change the location by setting the -file_backup_storage_root flag on vtctld and vttablet
-
-echo Initialize Vitess Routing Schema
-if [ $num_orig_shards -eq 1 ]; then
-echo "In the examples, we are just using a single database with no specific configuration. So we just need to make that (empty) configuration visible for serving. This is done by running the following command:"
-run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 RebuildVSchemaGraph"
-else
-echo
-echo We will apply the following VSchema:
-cat $DIR/../config/vschema.json
-echo
-run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ApplyVSchema -vschema "$(cat $DIR/../config/vschema.json)" %(keyspace)s'
-fi
-
-echo Start vtgate
-
-echo Vitess uses vtgate to route each client query to the correct vttablet. This local example runs a single vtgate instance, though a real deployment would likely run multiple vtgate instances to share the load.
-
-run_interactive "$DIR/vtgate-up.sh"
-
-echo You can run a simple client application that connects to vtgate and inserst some rows:
-python $DIR/client_mysql.py
-
-echo
-echo Congratulations, your local cluster is now up and running.
-echo
-cat << EOF
-You can now explore the cluster:
-
-    Access vtctld web UI at http://%(vtctld_host)s:15000
-    Send commands to vtctld with: vtctlclient -server %(vtctld_host)s:15999 ...
-    Try "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 help".
-
-%(tablet_urls)s
-
-    Access vtgate at http://%(vtgate_host)s:15001/debug/status
-    Connect to vtgate either at grpc_port or mysql_port and run queries against vitess.
-
-    Note: Vitess binaries write write logs under $VTDATAROOT/tmp.
-EOF
-
-"""
-    write_bin_file('start_cluster.sh', template % locals())
+    write_bin_file('start_cluster.sh', read_template('start_cluster.sh') % locals())
 
 def create_destroy_cluster():
     cell = CELL
-    template = """#!/bin/bash
-# This script destroys a local cluster.
-
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-$DIR/vttablet-down.sh
-pkill -f vttablet
-pkill -f mysql
-$DIR/vtgate-down.sh
-pkill -f vtgate
-$DIR/vtctld-down.sh
-pkill -f vtctld
-$DIR/zk-down.sh
-pkill -f zksrc
-pkill -f zk.cfg
-ps -ef | grep zk
-ps -ef | grep mysql
-ps -ef | grep vt
-echo
-read -p "Do you want to run: rm -rf $VTDATAROOT [y/N]:"
-if [ "$REPLY" == "Y" ] ; then
-    rm -rf $VTDATAROOT
-    echo Removed $VTDATAROOT
-else
-    echo Not Rrunning rm -rf $VTDATAROOT
-fi
-
-echo
-
-"""
-    write_bin_file('destroy_cluster.sh', template)
+    write_bin_file('destroy_cluster.sh', read_template('destroy_cluster.sh'))
 
 def fix_google_init_file():
     init_file = os.path.join(VTROOT, 'dist/grpc/usr/local/lib/python2.7/site-packages/google/__init__.py')
@@ -1686,285 +1505,8 @@ def create_sharding_workflow_script(ls, vtctld):
     keyspace = KEYSPACE
     deployment_dir = DEPLOYMENT_DIR
     deployment_helper_dir = DEPLOYMENT_HELPER_DIR
-    vtworker = """#!/bin/bash
-# This script runs interactive vtworker.
-set -e
-echo vtworker.sh $@
-read -p "Hit Enter to run the above command ..."
-TOPOLOGY_FLAGS="%(topology_flags)s"
-exec $VTROOT/bin/vtworker \
-  $TOPOLOGY_FLAGS \
-  -cell %(cell)s \
-  -log_dir $VTDATAROOT/tmp \
-  -alsologtostderr \
-  -use_v3_resharding_mode \
-  "$@"
-"""
-    write_bin_file('vtworker.sh', vtworker % locals())
-
-    template = r"""#!/bin/bash
-# Resharding demo script
-
-function run_interactive()
-{
-    command=$1
-    prompt=${2:-"Run this command? (Y/n):"}
-    echo $command
-    read -p "$prompt" response
-    if echo "$response" | grep -iq "^n" ; then
-	echo Not running: $command
-    else
-	eval $command
-    fi
-}
-
-set -e
-
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-cat << EOF
-
-The first step is to tell Vitess how we want to partition the data. We do this by providing a VSchema definition as follows:
-{
-  "sharded": true,
-  "vindexes": {
-    "hash": {
-      "type": "hash"
-    }
-  },
-  "tables": {
-    "messages": {
-      "column_vindexes": [
-        {
-          "column": "page",
-          "name": "hash"
-        }
-      ]
-    }
-  }
-}
-
-This says that we want to shard the data by a hash of the page column. In other words, keep each page's messages together, but spread pages around the shards randomly.
-
-We can load this VSchema into Vitess like this:
-EOF
-
-run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ApplyVSchema -vschema "$(cat $DIR/../config/vschema.json)" %(keyspace)s'
-
-cat << EOF
-
-Now we will generate tablets for shards -80 and 80- using deployment_helper.py
-
-REMEMBER, when prompted for number of shards, do not accept the default, enter "2".
-
-EOF
-
-run_interactive "python %(deployment_helper_dir)s/deployment_helper.py --action generate --component vttablet --add --use-config-without-prompt"
-
-cat << EOF
-
-Getting original shard set.
-
-EOF
-
-
-orig_shards=$(python -c "import json; print ' '.join(json.loads(open('%(deployment_dir)s/config/vttablet.json').read())['shard_sets'][0])")
-first_orig_shard=$(echo $orig_shards | cut  -d " " -f1)
-
-echo Original shard set = $orig_shards
-echo First shard in original shard set = $first_orig_shard
-
-cat << EOF
-
-Read new shard set.
-
-EOF
-
-new_shards=$(python -c "import json; print ' '.join(json.loads(open('%(deployment_dir)s/config/vttablet.json').read())['shard_sets'][1])")
-
-echo New shard set = $new_shards
-
-cat << EOF
-
-Now, let us start mysqld (if needed) and vttablets for the new shards using the generated scripts.
-
-EOF
-
-for shard in $new_shards; do
-    %(deployment_dir)s/bin/mysqld-up-shard-${shard}.sh
-    sleep 2
-    %(deployment_dir)s/bin/vttablet-up-shard-${shard}.sh
-    sleep 2
-done
-
-cat << EOF
-
-Now, if we run the following command, we  should be able to see tablets for all old and new shards.
-
-EOF
-
-run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListAllTablets %(cell)s"
-
-cat << EOF
-Once the tablets are ready, initialize replication by electing the first master for each of the new shards:
-EOF
-for shard in $new_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 InitShardMaster -force %(keyspace)s/$shard $tablet"
-done
-
-cat << EOF
-Now there should be multiple tablets per shard, with one master for each shard:
-EOF
-
-run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListAllTablets %(cell)s"
-
-cat << EOF
-The new tablets start out empty, so we need to copy everything from the original shard to the two new ones.
-
-We first copy schema:
-EOF
-
-for shard in $new_shards; do
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 CopySchemaShard %(keyspace)s/$first_orig_shard %(keyspace)s/$shard"
-done
-
-cat << EOF
-
-Next we copy the data. Since the amount of data to copy can be very large, we use a special batch process
-called vtworker to stream the data from a single source to multiple destinations, routing each row based on its keyspace_id.
-
-Notice that we only needed to specifiy the source shards: %(keyspace)s/[$orig_shards]
-The SplitClone process will automatically figure out which shards to use as the destinations based on the key range that needs to be covered.
-In this case, shard 0 covers the entire range, so it identifies -80 and 80- as the destination shards, since they combine to cover the same range.
-
-Next, it will pause replication on one rdonly (offline processing) tablet to serve as a consistent snapshot of the data.
-The app can continue without downtime, since live traffic is served by replica and master tablets, which are unaffected.
-Other batch jobs will also be unaffected, since they will be served only by the remaining, un-paused rdonly tablets.
-
-Once the copy from the paused snapshot finishes, vtworker turns on filtered replication from the source shard to each destination shard.
-This allows the destination shards to catch up on updates that have continued to flow in from the app since the time of the snapshot.
-
-EOF
-
-for shard in $orig_shards; do
-    $DIR/vtworker.sh SplitClone %(keyspace)s/$shard
-done
-
-cat << EOF
-
-When the destination shards are caught up, they will continue to replicate new updates.
-You can see this by looking at the contents of each shard as you add new messages to various pages in the Guestbook app.
-Shard 0 will see all the messages, while the new shards will only see messages for pages that live on that shard.
-
-Let us add a few rows to shard 0.
-
-EOF
-
-echo See data on original shard set: $orig_shards:
-echo
-
-for shard in $orig_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ExecuteFetchAsDba $tablet "SELECT count(*) FROM messages"'
-done
-
-echo See data on new shard set: $new_shards:
-echo
-
-for shard in $new_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ExecuteFetchAsDba $tablet "SELECT count(*) FROM messages"'
-done
-
-cat << EOF
-
-Now let us check copied data integrity
-
-The vtworker batch process has another mode that will compare the source and destination
-to ensure all the data is present and correct.
-
-EOF
-
-for shard in $new_shards; do
-    echo for $shard
-    $DIR/vtworker.sh SplitDiff %(keyspace)s/$shard
-done
-
-cat << EOF
-
-Now we are ready to switch over to serving from the new shards.
-The MigrateServedTypes command lets you do this one tablet type at a time, and even one cell at a time.
-The process can be rolled back at any point until the master is switched over.
-EOF
-
-for shard in $orig_shards; do
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 MigrateServedTypes %(keyspace)s/$shard rdonly"
-
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 MigrateServedTypes %(keyspace)s/$shard replica"
-
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 MigrateServedTypes %(keyspace)s/$shard master"
-done
-
-
-cat << EOF
-
-During the master migration, the original shard master will first stop accepting updates.
-Then the process will wait for the new shard masters to fully catch up on filtered replication before allowing them to begin serving.
-Since filtered replication has been following along with live updates, there should only be a few seconds of master unavailability.
-
-When the master traffic is migrated, the filtered replication will be stopped.
-Data updates will be visible on the new shards, but not on the original shard.
-See it for yourself: Let us add a few rows and then inspect the database content.
-
-EOF
-
-echo See data on original shard set: $orig_shards:
-echo "(no updates visible since we migrated away from it):"
-echo
-echo
-
-for shard in $orig_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ExecuteFetchAsDba $tablet "SELECT count(*) FROM messages"'
-done
-
-echo See data on new shard set: $new_shards:
-echo
-
-for shard in $new_shards; do
-    tablet=$($VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ListShardTablets %(keyspace)s/$shard | head -1 | awk '{print $1}')
-    run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ExecuteFetchAsDba $tablet "SELECT count(*) FROM messages"'
-done
-
-cat << EOF
-
-Now that all traffic is being served from the new shards, we can remove the original shard set.
-Fist we shut down the vttablets for the unused shards.
-
-EOF
-
-for shard in $orig_shards; do
-    run_interactive "$DIR/vttablet-down-shard-${shard}.sh"
-    run_interactive "$DIR/mysqld-down-shard-${shard}.sh"
-done
-
-cat << EOF
-
-Then we can delete the now-empty shard-set:
-
-EOF
-
-for shard in $orig_shards; do
-    run_interactive "$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 DeleteShard -recursive %(keyspace)s/$shard"
-done
-
-echo
-echo Congratulations, you have succesfully resharded your database.
-echo Look at http://%(vtctld_host)s:15000/ and verify that you only see shards 80- and -80.
-echo
-"""
-    write_bin_file("run_sharding_workflow.sh", template % locals())
+    write_bin_file('vtworker.sh', read_template('vtworker.sh') % locals())
+    write_bin_file('run_sharding_workflow.sh', read_template('run_sharding_workflow.sh') % locals())
 
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):

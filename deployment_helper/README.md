@@ -5,7 +5,7 @@ audiences in mind:
 
 1. Somebody new to Vitess who has just downloaded and compiled vitess and now wants to take it for a spin. For this audience deployment_helper replaces the scripts under examples/local.
 
-2. Somebody who has allocated, say, 20 hosts for a vitess deployment and wants to see how a 16 shard or 64 shad deployment would look like.
+2. Somebody who has allocated, say, 20 hosts for a vitess deployment and wants to see how a 16 shard or 64 shard deployment would look like.
 
 3. Somebody who already has a vitess deployment and wants help managing the cluster. Wants a central repository for commandline templates, central repository for database grants and user authentication information and an easy way to allocate, start and stop tablets.
 
