@@ -1,13 +1,14 @@
 import argparse
-import socket
-import urllib2
+import json
 import os
 import random
+import readline
+import signal
+import socket
+import subprocess
 import sys
 import types
-import readline
-import json
-import subprocess
+import urllib2
 
 args = None
 
