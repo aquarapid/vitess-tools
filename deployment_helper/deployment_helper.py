@@ -1174,6 +1174,8 @@ def get_public_hostname():
     if fqdn.endswith('compute.internal'):
         response = urllib2.urlopen('http://169.254.169.254/latest/meta-data/public-hostname')
         return response.read()
+    elif fqdn == "localhost.localdomain":
+        return "127.0.0.1"
     else:
         return fqdn
 
