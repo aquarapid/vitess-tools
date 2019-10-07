@@ -119,10 +119,10 @@ fi
 echo Start vtgate
 
 echo Vitess uses vtgate to route each client query to the correct vttablet. This local example runs a single vtgate instance, though a real deployment would likely run multiple vtgate instances to share the load.
-
 run_interactive "$DIR/vtgate-up.sh"
 
-echo You can run a simple client application that connects to vtgate and insert some rows:
+echo
+echo Now we can run a simple client application that connects to vtgate and insert some rows:
 run_interactive "python $DIR/client_mysql.py"
 
 echo
