@@ -7,6 +7,7 @@ import signal
 import socket
 import subprocess
 import sys
+import time
 import types
 import urllib2
 
@@ -1583,7 +1584,11 @@ def run_demo(ls, vtctld, vtgate, vttablets):
     start_cluster = os.path.join(DEPLOYMENT_DIR, 'bin', 'start_cluster.sh')
     response = read_value('Run "%s" to start cluster now? :' % start_cluster, 'Y')
     if response == 'Y':
-        subprocess.call(['bash', start_cluster])
+        try:
+            subprocess.call(['bash', start_cluster])
+        except KeyboardInterrupt:
+            sys.stdout.flush()
+            time.sleep(1)
     print
     run_sharding = os.path.join(DEPLOYMENT_DIR, 'bin', 'run_sharding_workflow.sh')
     response = read_value('Run "%s" to demo sharding workflow now? :' % run_sharding, 'Y')
