@@ -24,3 +24,5 @@ This will:
 + Generate the scripts for starting the cluster
 + Run these scripts to start the cluster, initialize master tablets and then demonstrates insertion and reading of rows from it.
 + Prompt you to start "run_resharding_workflow.sh" that starts the resharding workflow.
+
+Note that if you plan to run deployment_helper in demo locally, you will need at least 8 GB of free memory and 4 GB of free diskspace.
