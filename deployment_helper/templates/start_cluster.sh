@@ -83,6 +83,7 @@ echo
 echo The vtctlclient tool can be used to apply the database schema across all tablets in a keyspace.
 echo The following command creates the table defined in the database_schema.sql file
 run_interactive '$VTROOT/bin/vtctlclient -server %(vtctld_host)s:15999 ApplySchema -sql "$(cat $DIR/../config/database_schema.sql)" %(keyspace)s'
+sleep 2
 echo
 echo "Now that the initial schema is applied, it's a good time to take the first backup. This backup will be used to automatically restore any additional replicas that you run, before they connect themselves to the master and catch up on replication. If an existing tablet goes down and comes back up without its data, it will also automatically restore from the latest backup and then resume replication."
 
