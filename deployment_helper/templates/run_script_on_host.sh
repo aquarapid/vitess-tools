@@ -52,7 +52,9 @@ function run_script_file()
     local=$(is_local $host)
     if [ $local -eq 1 ]; then
         echo Running $script_file locally
+	set -m
         $script_file
+	set +m
     else
         can_not_ssh=$(check_ssh $host)
         if [ $can_not_ssh -ne 0 ]; then
