@@ -3,7 +3,6 @@ import json
 import os
 import random
 import readline
-import signal
 import socket
 import subprocess
 import sys
@@ -154,7 +153,7 @@ class ConfigType(object):
             for k in self.__dict__:
                 print '%s %s' % (k, type(self.__dict__[k]))
 
-    def read_config(self):
+    def read_config(self, show_prologue=True):
         config_file = self.get_config_file()
         interactive = not args.use_config_without_prompt
         if not interactive:
@@ -1427,17 +1426,7 @@ FLUSH PRIVILEGES;
                 out.append(line)
             out.append('')
 
-
         return header + '\n'.join(out) + footer
-
-    def set_vars():
-        self.vars['DBCONFIG_DBA_FLAGS'] = None
-        self.vars['DBCONFIG_FLAGS'] = None
-        self.vars['INIT_DB_SQL_FILE'] = None
-        # set DBCONFIG_DBA_FLAGS
-        # set DBCONFIG_FLAGS
-        # write init_db.sql
-        # set INIT_DB_SQL_FILE
 
 ACTION_CHOICES = [ 'generate', 'start', 'stop', 'run_demo']
 COMPONENT_CHOICES = ['lockserver', 'vtctld', 'vttablet', 'vtgate', 'all']
