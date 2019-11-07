@@ -775,13 +775,14 @@ def distribute_tablets(shards, configured_hosts):
     return tablets_per_host, host_per_tablet
 
 class MySqld(HostClass):
-    up_filename = 'mysqld-up.sh'
-    down_filename = 'mysqld-down.sh'
+
     up_instance_template = 'mysqld-up-instance.sh'
     down_instance_template = 'mysqld-down-instance.sh'
     short_name = 'mysqld'
 
     def __init__(self, vttablet):
+        self.up_filename = 'mysqld-%s-up.sh' % KEYSPACE
+        self.down_filename = 'mysqld-%s-down.sh' % KEYSPACE 
         self.vttablet = vttablet
         self.shards = self.vttablet.shards
         self.tablets = self.vttablet.tablets
@@ -842,7 +843,7 @@ class MySqld(HostClass):
         out.append('')
         for shard in self.shards:
             shard_out = self.up_commands_shard(shard)
-            script = write_bin_file('mysqld-up-shard-%s.sh' % shard, shard_out)
+            script = write_bin_file('mysqld-up-%s-shard-%s.sh' % (KEYSPACE, shard), shard_out)
             out.append(script)
             out.append('')
 
@@ -866,8 +867,6 @@ class MySqld(HostClass):
         self.dbconfig.generate()
 
 class VtTablet(HostClass):
-    up_filename = 'vttablet-up.sh'
-    down_filename = 'vttablet-down.sh'
     up_instance_template = 'vttablet-up-instance.sh'
     down_instance_template = 'vttablet-down-instance.sh'
     short_name = 'vttablet'
@@ -879,6 +878,8 @@ class VtTablet(HostClass):
     tablet_types = ['master', 'replica', 'rdonly']
 
     def __init__(self, hostname, ls, vtctld):
+        self.up_filename = 'vttablet-%s-up.sh' % KEYSPACE
+        self.down_filename = 'vttablet-%s-down.sh' % KEYSPACE        
         self.manage_mysqld = True
         self.hostname = hostname
         self.ls = ls
@@ -1145,7 +1146,7 @@ BACKUP_DIR="%(backup_dir)s"
         out.append('')
         for shard in self.shards:
             shard_out = self.up_commands_shard(shard)
-            script = write_bin_file('vttablet-up-shard-%s.sh' % shard, shard_out)
+            script = write_bin_file('vttablet-up-%s-shard-%s.sh' % (KEYSPACE, shard), shard_out)
             out.append(script)
             out.append('')
 
