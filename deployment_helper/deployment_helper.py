@@ -323,7 +323,7 @@ you can specify a file (one host per line) as "file:/path/to/file"."""
         elif action == 'stop':
             self.stop()
         else:
-            print 'ERRROR: action "%s" is not defined in %s' % (action, self)
+            print 'ERROR: action "%s" is not defined in %s' % (action, self)
             sys.exit(1)
 
 class Deployment(object):
@@ -1436,7 +1436,7 @@ COMPONENT_CHOICES = ['lockserver', 'vtctld', 'vttablet', 'vtgate', 'all']
 def define_args():
     ap = argparse.ArgumentParser(description='Vitess Cluster Management helper.')
 
-    ap.add_argument('--action', default='configure',
+    ap.add_argument('--action', default='generate',
                     choices=ACTION_CHOICES,
                     nargs='*',
                     help='Specify action[s]')
