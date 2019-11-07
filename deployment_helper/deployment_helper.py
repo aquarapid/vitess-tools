@@ -1,3 +1,4 @@
+#!/bin/env python2
 import argparse
 import json
 import os
@@ -1433,12 +1434,12 @@ ACTION_CHOICES = [ 'generate', 'start', 'stop', 'run_demo']
 COMPONENT_CHOICES = ['lockserver', 'vtctld', 'vttablet', 'vtgate', 'all']
 
 def define_args():
-    ap = argparse.ArgumentParser('Vitess Cluster Management helper.')
+    ap = argparse.ArgumentParser(description='Vitess Cluster Management helper.')
 
     ap.add_argument('--action', default='configure',
-                     choices=ACTION_CHOICES,
-                     nargs='*',
-                     help='Specify action[s]')
+                    choices=ACTION_CHOICES,
+                    nargs='*',
+                    help='Specify action[s]')
 
     ap.add_argument('--component', default='all',
                     nargs='*',
@@ -1447,25 +1448,31 @@ def define_args():
 
     ap.add_argument('--interactive', type=str2bool, nargs='?',
                     default=True, const=True,
+                    metavar='',
                     help='Turn interactive mode on or off.')
 
     ap.add_argument('--external-mysql', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='Generate scripts that work with a RDS')
 
     ap.add_argument('--use-config-without-prompt', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='If we find a config, use it without asking.')
 
     ap.add_argument('--verbose', type=str2bool, nargs='?',
                     default=True, const=True,
+                    metavar='',
                     help='Turn verbose mode on or off.')
 
     ap.add_argument('--add', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='Add to currently configured components.')
 
     ap.add_argument('--vtctld-addr',
+                    metavar='',
                     help='Specify vtctld-addr (useful in non-interactive mode).')
     return ap
 
