@@ -726,8 +726,8 @@ def make_shards(num_shards):
     def get_str(x):
         if x in (hex(0), hex(max_shards)):
             return ''
-        rv = '%s' % x
-        return rv.replace('0x', '')
+        rv = '{0:0{1}x}'.format(int(x, 16), bytes_needed*2)
+        return rv
 
     start = hex(0)
     end = None
