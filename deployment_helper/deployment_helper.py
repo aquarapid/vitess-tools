@@ -1,4 +1,6 @@
+#!/bin/env python2
 # pylint: disable=C0111,W0641,W0613,C0301
+
 from __future__ import print_function
 
 import argparse
@@ -7,7 +9,6 @@ import math
 import os
 import random
 import readline
-import signal
 import socket
 import subprocess
 import sys
@@ -162,7 +163,7 @@ class ConfigType(object):
             for k in self.__dict__:
                 print('%s %s' % (k, type(self.__dict__[k])))
 
-    def read_config(self):
+    def read_config(self, show_prologue=True):
         config_file = self.get_config_file()
         interactive = not args.use_config_without_prompt
         if not interactive:
@@ -331,7 +332,7 @@ you can specify a file (one host per line) as "file:/path/to/file".""")
         elif action == 'stop':
             self.stop()
         else:
-            print('ERRROR: action "%s" is not defined in %s' % (action, self))
+            print('ERROR: action "%s" is not defined in %s' % (action, self))
             sys.exit(1)
 
 class Deployment(object):
@@ -783,13 +784,14 @@ def distribute_tablets(shards, configured_hosts):
     return tablets_per_host, host_per_tablet
 
 class MySqld(HostClass):
-    up_filename = 'mysqld-up.sh'
-    down_filename = 'mysqld-down.sh'
+
     up_instance_template = 'mysqld-up-instance.sh'
     down_instance_template = 'mysqld-down-instance.sh'
     short_name = 'mysqld'
 
     def __init__(self, vttablet):
+        self.up_filename = 'mysqld-%s-up.sh' % KEYSPACE
+        self.down_filename = 'mysqld-%s-down.sh' % KEYSPACE 
         self.vttablet = vttablet
         self.shards = self.vttablet.shards
         self.tablets = self.vttablet.tablets
@@ -850,7 +852,7 @@ class MySqld(HostClass):
         out.append('')
         for shard in self.shards:
             shard_out = self.up_commands_shard(shard)
-            script = write_bin_file('mysqld-up-shard-%s.sh' % shard, shard_out)
+            script = write_bin_file('mysqld-up-%s-shard-%s.sh' % (KEYSPACE, shard), shard_out)
             out.append(script)
             out.append('')
 
@@ -874,8 +876,6 @@ class MySqld(HostClass):
         self.dbconfig.generate()
 
 class VtTablet(HostClass):
-    up_filename = 'vttablet-up.sh'
-    down_filename = 'vttablet-down.sh'
     up_instance_template = 'vttablet-up-instance.sh'
     down_instance_template = 'vttablet-down-instance.sh'
     short_name = 'vttablet'
@@ -887,6 +887,8 @@ class VtTablet(HostClass):
     tablet_types = ['master', 'replica', 'rdonly']
 
     def __init__(self, hostname, ls, vtctld):
+        self.up_filename = 'vttablet-%s-up.sh' % KEYSPACE
+        self.down_filename = 'vttablet-%s-down.sh' % KEYSPACE        
         self.manage_mysqld = True
         self.hostname = hostname
         self.ls = ls
@@ -1154,7 +1156,7 @@ BACKUP_DIR="%(backup_dir)s"
         out.append('')
         for shard in self.shards:
             shard_out = self.up_commands_shard(shard)
-            script = write_bin_file('vttablet-up-shard-%s.sh' % shard, shard_out)
+            script = write_bin_file('vttablet-up-%s-shard-%s.sh' % (KEYSPACE, shard), shard_out)
             out.append(script)
             out.append('')
 
@@ -1436,25 +1438,15 @@ FLUSH PRIVILEGES;
                 out.append(line)
             out.append('')
 
-
         return header + '\n'.join(out) + footer
-
-    def set_vars():
-        self.vars['DBCONFIG_DBA_FLAGS'] = None
-        self.vars['DBCONFIG_FLAGS'] = None
-        self.vars['INIT_DB_SQL_FILE'] = None
-        # set DBCONFIG_DBA_FLAGS
-        # set DBCONFIG_FLAGS
-        # write init_db.sql
-        # set INIT_DB_SQL_FILE
 
 ACTION_CHOICES = ['generate', 'start', 'stop', 'run_demo']
 COMPONENT_CHOICES = ['lockserver', 'vtctld', 'vttablet', 'vtgate', 'all']
 
 def define_args():
-    ap = argparse.ArgumentParser('Vitess Cluster Management helper.')
+    ap = argparse.ArgumentParser(description='Vitess Cluster Management helper.')
 
-    ap.add_argument('--action', default='configure',
+    ap.add_argument('--action', default='generate',
                     choices=ACTION_CHOICES,
                     nargs='*',
                     help='Specify action[s]')
@@ -1466,25 +1458,31 @@ def define_args():
 
     ap.add_argument('--interactive', type=str2bool, nargs='?',
                     default=True, const=True,
+                    metavar='',
                     help='Turn interactive mode on or off.')
 
     ap.add_argument('--external-mysql', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='Generate scripts that work with a RDS')
 
     ap.add_argument('--use-config-without-prompt', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='If we find a config, use it without asking.')
 
     ap.add_argument('--verbose', type=str2bool, nargs='?',
                     default=True, const=True,
+                    metavar='',
                     help='Turn verbose mode on or off.')
 
     ap.add_argument('--add', type=str2bool, nargs='?',
                     default=False, const=True,
+                    metavar='',
                     help='Add to currently configured components.')
 
     ap.add_argument('--vtctld-addr',
+                    metavar='',
                     help='Specify vtctld-addr (useful in non-interactive mode).')
     return ap
 
