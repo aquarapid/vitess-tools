@@ -19,6 +19,11 @@ try:
 except ImportError:
     from urllib.request import urlopen
 
+try:
+    input = raw_input
+except:
+    pass
+
 
 args = None
 
@@ -101,7 +106,7 @@ def read_value(prompt, default=''):
     if type(default) is int:
         default = str(default)
     prompt = '%s [%s]:' % (prompt, default)
-    val = raw_input(prompt).strip()
+    val = input(prompt).strip()
     if not val:
         val = default
     return val
@@ -112,7 +117,7 @@ def read_list(prompt, default=[]):
     if type(default) is int:
         default = str(default)
     prompt = '%s %s:' % (prompt, default)
-    prompt_input = raw_input(prompt).strip()
+    prompt_input = input(prompt).strip()
     lst = [el.strip() for el in prompt_input.split(',')]
     # TODO: hack
     if lst == ['']: lst = []
@@ -143,7 +148,8 @@ class ConfigType(object):
     Written to a config file.
     Is prompted for and read from user input.
     """
-    ConfigTypes = [types.DictType, types.StringType, types.ListType, types.IntType]
+    short_name = None
+    ConfigTypes = (dict, str, list, int)
 
     def get_config_file(self):
         config_dir = os.path.join(DEPLOYMENT_DIR, 'config')
@@ -153,7 +159,7 @@ class ConfigType(object):
         config_file = self.get_config_file()
         if not os.path.exists(os.path.dirname(config_file)):
             os.makedirs(os.path.dirname(config_file))
-        out = {k: self.__dict__[k] for k in self.__dict__ if type(self.__dict__[k]) in self.ConfigTypes}
+        out = {k: self.__dict__[k] for k in self.__dict__ if isinstance(self.__dict__[k], self.ConfigTypes)}
         try:
             with open(config_file, 'w') as fh:
                 json.dump(out, fh, indent=4, separators=(',', ': '))
@@ -183,7 +189,7 @@ class ConfigType(object):
         if interactive:
             get_hosts = getattr(self, 'get_hosts', None)
             if callable(get_hosts):
-                get_hosts()
+                self.get_hosts()
             self.read_config_interactive()
             self.write_config()
         else:
@@ -252,10 +258,10 @@ you can specify a file (one host per line) as "file:/path/to/file".""")
                 self.configured_hosts.append(h)
 
     def read_config_interactive(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def up_commands(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def instance_content(self, i, ftype):
         if ftype == 'up':
@@ -721,26 +727,24 @@ def make_shards(num_shards):
     Return canonical shard names covering the range with the number of
     shards provided
     """
-    bytes_needed = max(int(math.ceil(math.log(num_shards, 2)/8)), 1)
-    max_shards = 2 ** (bytes_needed* 8)
+    bytes_needed = max(int(math.ceil(math.log(num_shards, 256))), 1)
+    interval = (2**64-num_shards+1) / num_shards + 1
 
-    def get_str(x):
-        if x in (hex(0), hex(max_shards)):
-            return ''
-        rv = '{0:0{1}x}'.format(int(x, 16), bytes_needed*2)
-        return rv
-
-    start = hex(0)
-    end = None
-    size = max_shards / num_shards
+    end = 0
     shards = []
-    for i in range(1, num_shards + 1):
-        end = hex(i * size)
-        shard = '%s-%s' % (get_str(start), get_str(end))
-        if shard == '-':
+    for i in range(0, num_shards):
+        start = end
+        end = start + interval
+
+        if i == 0:
+            shard = '-%s' % '{:016x}'.format(end)[:bytes_needed*2]
+        elif i == num_shards - 1:
+            shard = '%s-' % '{:016x}'.format(start)[:bytes_needed*2]
+        else:
+            shard = '%s-%s' % ('{:016x}'.format(start)[:bytes_needed*2], '{:016x}'.format(end)[:bytes_needed*2])
+        if num_shards == 1:
             shard = '0'
         shards.append(shard)
-        start = end
     return shards
 
 def distribute_tablets(shards, configured_hosts):
@@ -1109,7 +1113,7 @@ BACKUP_DIR="%(backup_dir)s"
     def instance_header_down(self, tablet):
         return self.instance_header(tablet)
 
-    def instance_filename(self, tablet, ftype="up"):
+    def instance_filename(tablet, ftype="up"):
         return 'vttablet-%s-instance-%s.sh' % (ftype, tablet['unique_id'])
 
     def down_commands_shard(self, shard):
@@ -1288,8 +1292,7 @@ class DbConnectionTypes(ConfigType):
     def get_mysql_auth_param(self):
         if self.cred_file_path:
             return '-mysql_auth_server_static_file %s' % self.cred_file_path
-        else:
-            return ''
+        return ''
 
     def write_mysql_creds(self):
         creds = {}
